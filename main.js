@@ -3,7 +3,7 @@
  */
 
 import { loadEntities, requestStats } from 'network';
-import { get as getStorage, set as setStorage } from 'storage';
+import { get as getStorage, set as setStorage, has as hasStorage } from 'storage';
 import { prepareDataForSalaireHeatmap, prepareDataForSalaireLines } from 'viz/preprocessor';
 import { createSalaireHeatmap, updateSalaireHeatmapData, updateSalaireHeatmapTitle } from 'viz/heatmap';
 
@@ -62,19 +62,25 @@ function updateVisualisations({ updateSalaireHeatmap = false, updateSalaireLines
     updateSalaireHeatmapData(regionNoms, disciplineNoms, salaires);
   }
   if (updateSalaireLines) {
-    const { legendes, annees, series, vizName } = prepareDataForSalaireLines();
-    // Import dynamique du module
-    import('viz/lines').then(({ createSalaireLines, updateSalaireLinesData, updateSalaireLinesTitle }) => {
-      // Creation de la viz initiale si pas déjà créée
-      if (!linesVizCreated) {
-        linesVizCreated = true;
-        createSalaireLines(false);
-      }
-      // met à jour le titre de la visualisation
-      updateSalaireLinesTitle(vizName);
-      // met à jour la vis lines de salaires
-      updateSalaireLinesData(legendes, annees, series);
-    });
+    // Vérifie que l'on ait soit une discipline selectionnée soir une region selectionnée
+    const selectedDisciplineId = getStorage('selectedDisciplineId', false);
+    const selectedRegionId = getStorage('selectedRegionId', false);
+    if ((selectedDisciplineId !== null && selectedRegionId === null) 
+    || (selectedDisciplineId === null && selectedRegionId !== null)) {
+      const { legendes, annees, series, vizName } = prepareDataForSalaireLines();
+      // Import dynamique du module
+      import('viz/lines').then(({ createSalaireLines, updateSalaireLinesData, updateSalaireLinesTitle }) => {
+        // Creation de la viz initiale si pas déjà créée
+        if (!linesVizCreated) {
+          linesVizCreated = true;
+          createSalaireLines(false);
+        }
+        // met à jour le titre de la visualisation
+        updateSalaireLinesTitle(vizName);
+        // met à jour la vis lines de salaires
+        updateSalaireLinesData(legendes, annees, series);
+      });
+    }
   }
 }
 
@@ -106,30 +112,54 @@ function onSelectRegionByNom(regionNom) {
   }
 }
 
+let refreshingData = false;
+function refreshData() {
+  if (refreshingData) {
+    return;
+  }
+  refreshingData = true;
+  document.getElementById('refreshDataButton').setAttribute('disabled', true);
+  // Chargement des entites
+  const promesseEntites = loadEntities().then(({
+    regionsById,
+    disicplinesById
+  }) => {
+    setStorage('regionsById', regionsById);
+    setStorage('disicplinesById', disicplinesById);
+  });
+  const promesseStats = requestStats({
+    moisApresDiplome: 30 // on ne veut que les stats d'insertion pro à 30 mois après le diplome
+  }, {
+    typeStats: 'insertionsPro', // on ne s'interesse qu'aux salaire
+    insertionProDetails: 'salaire' // on ne s'interesse qu'aux salaire
+  }).then((stats) => {
+    setStorage('stats', stats);
+  });
+  // On attend que les deux promesses aient réussie et le cas échéant, on prepare notre jeu de donnée intermédiaire et l'on met à jour la visualisations heatmap
+  Promise.all([promesseEntites, promesseStats]).then(() => {
+    creerMoyennesSalairesParAnneeRegionDiscipline();
+    updateVisualisations({ updateSalaireHeatmap: true, updateSalaireLines: true });
+  }).finally(() => {
+    refreshingData = false;
+    document.getElementById('refreshDataButton').removeAttribute('disabled');
+  });
+}
+
 /**
  * Point d'entrée de l'application", la première qui sera exécutée
  */
-// Créer les structures de visualisations initiales (en indicant l'indicateur de chargement
+// MEt en place une écoute sur le bouton de rafraichissement des données
+document.getElementById('refreshDataButton').addEventListener('click', () => {
+  refreshData();
+})
+// Créer la structures de visualisations initiale de la heatmap (en indicant l'indicateur de chargement
 createSalaireHeatmap(onSelectDisciplineByNom, onSelectRegionByNom);
+
+// Tente de récupérer du storage les 3 structures de base : regionsById, disicplinesById, 
 // Charge les données des entités et les statistiques initiales et les stocke dans le modèles
-// On ne s'interesse pour cette démo qu'aux regionsById et aux disciplinesById
-const promesseEntites = loadEntities().then(({
-  regionsById,
-  disicplinesById
-}) => {
-  setStorage('regionsById', regionsById);
-  setStorage('disicplinesById', disicplinesById);
-});
-const promesseStats = requestStats({
-  moisApresDiplome: 30 // on ne veut que les stats d'insertion pro à 30 mois après le diplome
-}, {
-  typeStats: 'insertionsPro', // on ne s'interesse qu'aux salaire
-  insertionProDetails: 'salaire' // on ne s'interesse qu'aux salaire
-}).then((stats) => {
-  setStorage('stats', stats);
-});
-// On attend que les deux promesses aient réussie et le cas échéant, on prepare notre jeu de donnée intermédiaire et l'on met à jour la visualisations heatmap
-Promise.all([promesseEntites, promesseStats]).then(() => {
+// On ne s'interesse pour cette démo qu'aux regionsById et aux disciplinesById, stats
+if (['regionsById', 'disicplinesById', 'stats'].every((k) => hasStorage(k))) {
+  // Tout est prêt pour un affichage sans charger les données de l'API
   creerMoyennesSalairesParAnneeRegionDiscipline();
-  updateVisualisations({ updateSalaireHeatmap: true })
-});
+  updateVisualisations({ updateSalaireHeatmap: true, updateSalaireLines: true });
+}
