@@ -9,12 +9,27 @@
   <!-- Bibliotheque echarts -->
   <script src="node_modules/echarts/dist/echarts.js"></script>
 
+
+  <script>
+    if (!HTMLScriptElement?.supports?.("importmap")) {
+      alert('Votre navigateur ne supporte pas cette application web');
+    }
+  </script>
+
   <!-- Bibliotheques du site -->
-  <script src="scripts/network.js" defer></script>
-  <script src="scripts/storage.js" defer></script>
-  <script src="scripts/visDataPreprocessor.js" defer></script>
-  <script src="scripts/visualisations.js" defer></script>
-  <script src="scripts/main.js" defer></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "network": "./modules/network.js",
+        "storage": "./modules/storage.js",
+        "viz/preprocessor": "./modules/vizDataPreprocessor.js",
+        "viz/heatmap": "./modules/heatmapViz.js",
+        "viz/lines": "./modules/linesViz.js"
+      }
+    }
+  </script>
+  
+  <script type="module" src="main.js"></script>
 </head>
 
 <body>
