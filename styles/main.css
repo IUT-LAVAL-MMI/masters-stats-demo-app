@@ -1,0 +1,21 @@
+body {
+  margin-left: 1em;
+  margin-right: 1em;
+}
+
+main {
+  display: flex;
+  flex-flow: row nowrap;
+}
+
+main > * {
+  margin: 1em;
+  padding: 5px;
+  flex-basis: 10%;
+  flex-grow: 1;
+}
+
+.viz {
+  width: 100%;
+  height: 60vh;
+}

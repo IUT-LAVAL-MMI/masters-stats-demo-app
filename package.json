@@ -1,0 +1,14 @@
+{
+  "name": "demoexploitationapi",
+  "version": "1.0.0",
+  "description": "demo de l'exploitation de l'API masters-stats-api",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Rémi Venant",
+  "license": "ISC",
+  "dependencies": {
+    "echarts": "^5.5.1"
+  }
+}
